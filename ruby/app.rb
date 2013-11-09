@@ -6,6 +6,7 @@ require 'digest/sha2'
 require 'tempfile'
 require 'fileutils'
 require 'uuid'
+require 'redis'
 
 class Isucon3Final < Sinatra::Base
   $stdout.sync = true
@@ -26,6 +27,11 @@ class Isucon3Final < Sinatra::Base
       $config = JSON.parse(IO.read(File.dirname(__FILE__) + "/../config/#{ ENV['ISUCON_ENV'] || 'local' }.json"))
     end
 
+    def redis
+      @redis ||= Redis.new("host" => "localhost", "port" => 6379, :db => 5)
+      # :driver => :hiredis
+    end
+
     def connection
       config = load_config['database']
       return $mysql if $mysql
@@ -39,7 +45,12 @@ class Isucon3Final < Sinatra::Base
       )
     end
 
-    def convert(orig, ext, w, h)
+    def convert(orig, ext, w, h, perform_caching=true)
+      redis_key = "convert:#{orig}:#{ext}:#{w}:#{h}"
+
+      data = redis.get redis_key if perform_caching
+      return data if data
+
       data = nil
 
       Tempfile.open('isucontemp') do |tmp|
@@ -50,6 +61,8 @@ class Isucon3Final < Sinatra::Base
         end
         File.unlink(newfile)
       end
+
+      redis.set redis_key, data if perform_caching
 
       data
     end
@@ -313,7 +326,7 @@ class Isucon3Final < Sinatra::Base
     h = w
 
     content_type 'image/png'
-    convert(icon_path, 'png', w, h)
+    convert(icon_path, 'png', w, h, true)
   end
 
   post '/icon' do
@@ -428,14 +441,23 @@ class Isucon3Final < Sinatra::Base
       :               IMAGE_L
     h = w
 
-    if w
+    redis_key = "crop_square:#{image}:#{w.to_i}"
+    data = redis.get redis_key
+
+    if data
+      # nop
+    elsif w
       file = crop_square("#{dir}/image/#{image}.jpg", 'jpg')
-      data = convert(file, 'jpg', w, h)
+      data = convert(file, 'jpg', w, h, false)
       File.unlink(file)
+
+      redis.set redis_key, data
     else
       file = File.open("#{dir}/image/#{image}.jpg", 'r+b')
       data = file.read
       file.close
+
+      redis.set redis_key, data
     end
 
     content_type 'image/jpeg'
