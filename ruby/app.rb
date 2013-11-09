@@ -183,7 +183,7 @@ class Isucon3Final < Sinatra::Base
     def db_entries
       db_users.collect do |user|
         db_user_entries_by_last_entry user["id"]
-      end.flatten
+      end.flatten.compact
     end
 
     def db_user_by_api_key api_key
