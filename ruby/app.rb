@@ -499,7 +499,7 @@ class Isucon3Final < Sinatra::Base
       _entries = db_user_entries_by_last_entry user["id"], latest_entry
 
       if _entries.size == 0
-        sleep INTERVAL
+        # sleep INTERVAL
         next
       else
         entries      = _entries
