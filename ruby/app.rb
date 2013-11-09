@@ -7,6 +7,7 @@ require 'tempfile'
 require 'fileutils'
 require 'uuid'
 require 'redis'
+require './isuworker'
 
 class Isucon3Final < Sinatra::Base
   $stdout.sync = true
@@ -549,6 +550,10 @@ class Isucon3Final < Sinatra::Base
         }
       end
     })
+  end
+  get '/preload' do
+    Isuworker.perform_async({})
+    halt 200, "ok"
   end
 
   run! if app_file == $0
