@@ -10,7 +10,8 @@ require 'redis'
 
 class Isucon3Final < Sinatra::Base
   $stdout.sync = true
-  TIMEOUT  = 30
+  # TIMEOUT  = 30
+  TIMEOUT  = 15
   INTERVAL =  2
   $UUID    = UUID.new
 
