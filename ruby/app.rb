@@ -28,8 +28,7 @@ class Isucon3Final < Sinatra::Base
     end
 
     def redis
-      @redis ||= Redis.new("host" => "localhost", "port" => 6379, :db => 5)
-      # :driver => :hiredis
+      @redis ||= Redis.new("host" => "localhost", "port" => 6379, :db => 5, :driver => :hiredis)
     end
 
     def connection
