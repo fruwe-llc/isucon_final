@@ -5,6 +5,7 @@ GEM
     celluloid (0.15.2)
       timers (~> 1.1.0)
     connection_pool (1.1.0)
+    hiredis (0.4.5)
     json (1.8.0)
     kgio (2.8.1)
     macaddr (1.6.1)
@@ -55,9 +56,11 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  hiredis (~> 0.4.0)
   json (= 1.8.0)
   mysql2 (= 0.3.13)
   mysql2-cs-bind (= 0.0.6)
+  redis (>= 2.2.0)
   shotgun
   sidekiq
   sinatra (= 1.4.3)
