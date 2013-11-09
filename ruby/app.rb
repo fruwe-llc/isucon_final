@@ -82,14 +82,9 @@ class Isucon3Final < Sinatra::Base
     end
 
     def get_user
-      mysql   = connection
-
       api_key = env["HTTP_X_API_KEY"] || request.cookies["api_key"]
-      if api_key
-        user = mysql.xquery('SELECT * FROM users WHERE api_key = ?', api_key).first
-      end
 
-      user
+      user = db_user_by_api_key api_key
     end
 
     def require_user(user)
@@ -114,6 +109,158 @@ class Isucon3Final < Sinatra::Base
       value = Rack::Utils.parse_query(@env['rack.request.form_vars'])[key]
       value.is_a?(Array) ? value : [value]
     end
+
+    def next_uuid
+      Digest::SHA256.hexdigest($UUID.generate)
+    end
+
+    # database accesses
+
+    def db_user_by_api_key api_key
+      return nil unless api_key
+
+      mysql   = connection
+      user = mysql.xquery('SELECT * FROM users WHERE api_key = ?', api_key).first
+
+      return user
+    end
+
+    def db_user_by_id user_id
+      return nil unless user_id
+
+      mysql   = connection
+      user = mysql.xquery('SELECT * FROM users WHERE id = ?', user_id).first
+
+      return user
+    end
+
+    def db_add_user name, api_key
+      mysql = connection
+
+      mysql.xquery(
+        'INSERT INTO users (name, api_key, icon) VALUES (?, ?, ?)',
+        name, api_key, 'default'
+      )
+
+      user = db_user_by_id mysql.last_id
+
+      return user
+    end
+
+    def db_set_user_icon user_id, icon
+      mysql = connection
+
+      mysql.xquery(
+        'UPDATE users SET icon = ? WHERE id = ?',
+        icon, user_id
+      )
+
+      return nil
+    end
+
+    def db_create_entry user_id, image_id, publish_level
+      mysql = connection
+
+      mysql.xquery(
+        'INSERT INTO entries (user, image, publish_level, created_at) VALUES (?, ?, ?, NOW())',
+        user_id, image_id, publish_level
+      )
+
+      id    = mysql.last_id
+      # entry = mysql.xquery('SELECT * FROM entries WHERE id = ?', id).first
+
+      return id
+    end
+
+    def db_entry_by_id entry_id
+      mysql = connection
+
+      entry = mysql.xquery('SELECT * FROM entries WHERE id = ?', entry_id).first
+
+      return entry
+    end
+
+    def db_entry_delete_by_id entry_id
+      mysql = connection
+
+      mysql.xquery('DELETE FROM entries WHERE id = ?', entry_id)
+
+      return nil
+    end
+
+    def db_entry_by_image image
+      mysql = connection
+
+      entry = mysql.xquery('SELECT * FROM entries WHERE image = ?', image).first
+
+      return entry
+    end
+
+    def db_is_follow user_id, target_id
+      mysql = connection
+
+      follow = mysql.xquery(
+        'SELECT * FROM follow_map WHERE user = ? AND target = ?',
+        user_id, target_id
+      ).first
+
+      is_following = !!follow
+
+      return is_following
+    end
+
+    def db_users_followed_by_user_id user_id
+      mysql = connection
+      
+      following = mysql.xquery(
+        'SELECT users.* FROM follow_map JOIN users ON (follow_map.target = users.id) WHERE follow_map.user = ? ORDER BY follow_map.created_at DESC',
+        user_id
+      )
+
+      return following
+    end
+
+    def db_insert_to_user_followers user_id, targets
+      mysql = connection
+
+      targets.each do |target|
+        mysql.xquery(
+          'INSERT IGNORE INTO follow_map (user, target, created_at) VALUE (?, ?, NOW())',
+          user_id, target
+        )
+      end
+
+      return nil
+    end
+
+    def db_delete_from_user_followers user_id, targets
+      mysql = connection
+      
+      targets.each do |target|
+        mysql.xquery(
+          'DELETE FROM follow_map WHERE user = ? AND target = ?',
+          user_id, target
+        )
+      end
+
+      return nil
+    end
+
+    def db_user_entries_by_last_entry user_id, latest_entry = nil
+      mysql = connection
+
+      if latest_entry
+          sql = 'SELECT * FROM (SELECT * FROM entries WHERE (user=? OR publish_level=2 OR (publish_level=1 AND user IN (SELECT target FROM follow_map WHERE user=?))) AND id > ? ORDER BY id LIMIT 30) AS e ORDER BY e.id DESC'
+          params = [user_id, user_id, latest_entry]
+      else
+          sql = 'SELECT * FROM entries WHERE (user=? OR publish_level=2 OR (publish_level=1 AND user IN (SELECT target FROM follow_map WHERE user=?))) ORDER BY id DESC LIMIT 30'
+          params = [user_id, user_id]
+      end
+
+      entries = mysql.xquery(sql, *params)
+
+      return entries
+    end
   end
 
   get '/' do
@@ -121,20 +268,14 @@ class Isucon3Final < Sinatra::Base
   end
 
   post '/signup' do
-    mysql = connection
-
     name = params[:name]
     unless name.match(/\A[0-9a-zA-Z_]{2,16}\z/)
       halt 400, "400 Bad Request"
     end
 
-    api_key = Digest::SHA256.hexdigest($UUID.generate)
-    mysql.xquery(
-      'INSERT INTO users (name, api_key, icon) VALUES (?, ?, ?)',
-      name, api_key, 'default'
-    )
-    id   = mysql.last_id
-    user = mysql.xquery('SELECT * FROM users WHERE id = ?', id).first
+    api_key = next_uuid
+
+    user = db_add_user name, api_key
 
     json({
       :id      => user["id"].to_i,
@@ -176,7 +317,6 @@ class Isucon3Final < Sinatra::Base
   end
 
   post '/icon' do
-    mysql = connection
     user  = get_user
     require_user(user)
 
@@ -189,21 +329,18 @@ class Isucon3Final < Sinatra::Base
     end
 
     file = crop_square(upload[:tempfile].path, 'png')
-    icon = Digest::SHA256.hexdigest($UUID.generate)
+    icon = next_uuid
     dir  = load_config['data_dir']
     FileUtils.move(file, "#{dir}/icon/#{icon}.png") or halt 500
 
-    mysql.xquery(
-      'UPDATE users SET icon = ? WHERE id = ?',
-      icon, user["id"]
-    )
+    db_set_user_icon user["id"], icon
+
     json({
       :icon => uri_for("/icon/#{icon}")
     })
   end
 
   post '/entry' do
-    mysql = connection
     user  = get_user
     require_user(user)
 
@@ -215,21 +352,17 @@ class Isucon3Final < Sinatra::Base
       halt 400, "400 Bad Request"
     end
 
-    image_id = Digest::SHA256.hexdigest($UUID.generate)
+    image_id = next_uuid
     dir      = load_config['data_dir']
     FileUtils.move(upload[:tempfile].path, "#{dir}/image/#{image_id}.jpg") or halt 500
 
     publish_level = params[:publish_level]
-    mysql.xquery(
-      'INSERT INTO entries (user, image, publish_level, created_at) VALUES (?, ?, ?, NOW())',
-      user["id"], image_id, publish_level
-    )
-    id    = mysql.last_id
-    entry = mysql.xquery('SELECT * FROM entries WHERE id = ?', id).first
+
+    entry_id = db_create_entry user["id"], image_id, publish_level
 
     json({
-      :id            => entry["id"].to_i,
-      :image         => uri_for("/image/#{entry["image"]}"),
+      :id            => entry_id,
+      :image         => uri_for("/image/#{image_id}"),
       :publish_level => publish_level.to_i,
       :user => {
         :id   => user["id"].to_i,
@@ -240,21 +373,17 @@ class Isucon3Final < Sinatra::Base
   end
 
   post '/entry/:id' do
-    mysql = connection
     user  = get_user
     require_user(user)
 
     id  = params[:id].to_i
 
-    entry = mysql.xquery('SELECT * FROM entries WHERE id = ?', id).first
-    unless entry
-      halt 404
-    end
-    unless entry["user"] == user["id"] && params["__method"] == 'DELETE'
-      halt 400, "400 Bad Request"
-    end
+    entry = db_entry_by_id id
 
-    mysql.xquery('DELETE FROM entries WHERE id = ?', id)
+    halt 404 unless entry
+    halt 400, "400 Bad Request" unless entry["user"] == user["id"] && params["__method"] == 'DELETE'
+
+    db_entry_delete_by_id id
 
     json({
       :ok => true
@@ -262,14 +391,14 @@ class Isucon3Final < Sinatra::Base
   end
 
   get '/image/:image' do
-    mysql = connection
     user  = get_user
 
     image = params[:image]
     size  = params[:size] || 'l'
     dir   = load_config['data_dir']
 
-    entry = mysql.xquery('SELECT * FROM entries WHERE image = ?', image).first
+    entry = db_entry_by_image image
+
     unless entry
       halt 404
     end
@@ -285,10 +414,8 @@ class Isucon3Final < Sinatra::Base
       if user && entry["user"] == user["id"]
         # ok
       elsif user
-        follow = mysql.xquery(
-          'SELECT * FROM follow_map WHERE user = ? AND target = ?',
-          user["id"], entry["user"]
-        ).first
+        follow = db_is_follow user["id"], entry["user"]
+
         halt 404 unless follow
       else
         halt 404
@@ -316,14 +443,10 @@ class Isucon3Final < Sinatra::Base
   end
 
   def get_following
-    mysql = connection
     user  = get_user
     require_user(user)
 
-    following = mysql.xquery(
-      'SELECT users.* FROM follow_map JOIN users ON (follow_map.target = users.id) WHERE follow_map.user = ? ORDER BY follow_map.created_at DESC',
-      user["id"]
-    )
+    following = db_users_followed_by_user_id user["id"]
 
     headers "Cache-Control" => "no-cache"
     json({
@@ -342,57 +465,38 @@ class Isucon3Final < Sinatra::Base
   end
 
   post '/follow' do
-    mysql = connection
     user  = get_user
     require_user(user)
 
-    params_with_multi_value('target').each do |target|
-      next if target == user["id"]
+    targets = params_with_multi_value('target') - [user["id"]]
 
-      mysql.xquery(
-        'INSERT IGNORE INTO follow_map (user, target, created_at) VALUE (?, ?, NOW())',
-        user["id"], target
-      )
-    end
+    db_insert_to_user_followers user["id"], targets
 
     get_following
   end
 
   post '/unfollow' do
-    mysql = connection
     user  = get_user
     require_user(user)
 
-    params_with_multi_value('target').each do |target|
-      next if target == user["id"]
+    targets = params_with_multi_value('target') - [user["id"]]
 
-      mysql.xquery(
-        'DELETE FROM follow_map WHERE user = ? AND target = ?',
-        user["id"], target
-      )
-    end
+    db_delete_from_user_followers user["id"], targets
 
     get_following
   end
 
   get '/timeline' do
-    mysql = connection
     user  = get_user
     require_user(user)
 
     latest_entry = params[:latest_entry]
-    if latest_entry
-        sql = 'SELECT * FROM (SELECT * FROM entries WHERE (user=? OR publish_level=2 OR (publish_level=1 AND user IN (SELECT target FROM follow_map WHERE user=?))) AND id > ? ORDER BY id LIMIT 30) AS e ORDER BY e.id DESC'
-        params = [user["id"], user["id"], latest_entry]
-    else
-        sql = 'SELECT * FROM entries WHERE (user=? OR publish_level=2 OR (publish_level=1 AND user IN (SELECT target FROM follow_map WHERE user=?))) ORDER BY id DESC LIMIT 30'
-        params = [user["id"], user["id"]]
-    end
 
     start        = Time.now.to_i
     entries      = []
+
     while Time.now.to_i - start < TIMEOUT
-      _entries = mysql.xquery(sql, *params)
+      _entries = db_user_entries_by_last_entry user["id"], latest_entry
 
       if _entries.size == 0
         sleep INTERVAL
@@ -408,7 +512,9 @@ class Isucon3Final < Sinatra::Base
     json({
       :latest_entry => latest_entry.to_i,
       :entries => entries.map do |entry|
-        user = mysql.xquery('SELECT * FROM users WHERE id = ?', entry["user"]).first
+
+        user = db_user_by_id entry["user"]
+
         {
           :id            => entry["id"].to_i,
           :image         => uri_for("/image/#{entry["image"]}"),
