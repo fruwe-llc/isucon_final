@@ -132,7 +132,9 @@ class Isucon3Final < Sinatra::Base
       end
     end
 
-    def create_icon icon_path, image_size
+    def create_icon icon, image_size
+      dir = load_config['data_dir']
+      icon_path = "#{dir}/icon/#{icon}.png"
       convert(icon_path, 'png', image_size, image_size, true)
     end
 
@@ -169,6 +171,16 @@ class Isucon3Final < Sinatra::Base
     end
 
     # database accesses
+
+    def db_users
+      mysql   = connection
+      users = mysql.xquery('SELECT * FROM users').entries
+    end
+
+    def db_entries
+      mysql   = connection
+      entries = mysql.xquery('SELECT * FROM entries').entries
+    end
 
     def db_user_by_api_key api_key
       return nil unless api_key
@@ -400,6 +412,22 @@ class Isucon3Final < Sinatra::Base
     })
   end
 
+  get '/prepare_users' do
+    users = db_users
+    users.each do |user|
+      create_icons user["icon"]
+    end
+    halt 200, "#{users.count}"
+  end
+
+  get '/prepare_entries' do
+    entries = db_entries
+    entries.each do |entry|
+      create_images entry["image"]
+    end
+    halt 200, "#{entries.count}"
+  end
+
   post '/entry' do
     user  = get_user
     require_user(user)
@@ -492,7 +520,8 @@ class Isucon3Final < Sinatra::Base
     redis_key = "crop_square:#{image}:#{w.to_i}"
     data = redis.get redis_key
 
-    raise "Chris f**ked up - run preparation script" unless data
+    # raise "Chris f**ked up - run preparation script" unless data
+    data = create_image image, w unless data
 
     content_type 'image/jpeg'
     data
