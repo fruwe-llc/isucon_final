@@ -1,0 +1,60 @@
+{
+   "abstract" : "Type check matchers for Test::Deep",
+   "author" : [
+      "NAKAGAWA Masaki <masaki@cpan.org>"
+   ],
+   "dynamic_config" : 0,
+   "generated_by" : "Module::Install version 1.06, CPAN::Meta::Converter version 2.120921",
+   "license" : [
+      "perl_5"
+   ],
+   "meta-spec" : {
+      "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
+      "version" : "2"
+   },
+   "name" : "Test-Deep-Matcher",
+   "no_index" : {
+      "directory" : [
+         "inc",
+         "t",
+         "xt"
+      ]
+   },
+   "prereqs" : {
+      "build" : {
+         "requires" : {
+            "ExtUtils::MakeMaker" : "6.59",
+            "Symbol" : "0",
+            "Test::Deep" : "0",
+            "Test::More" : "0.98",
+            "Test::Tester" : "0",
+            "Test::UseAllModules" : "0"
+         }
+      },
+      "configure" : {
+         "requires" : {
+            "ExtUtils::MakeMaker" : "6.59"
+         }
+      },
+      "runtime" : {
+         "requires" : {
+            "Data::Util" : "0",
+            "Exporter" : "0",
+            "Test::Deep" : "0",
+            "parent" : "0",
+            "perl" : "5.008001"
+         }
+      }
+   },
+   "release_status" : "stable",
+   "resources" : {
+      "license" : [
+         "http://dev.perl.org/licenses/"
+      ],
+      "repository" : {
+         "type" : "git",
+         "url" : "git://github.com/masaki/p5-Test-Deep-Matcher.git"
+      }
+   },
+   "version" : "0.01"
+}

@@ -1,0 +1,1 @@
+{"provides":{"Data::Util::PurePerl":{"file":"lib/Data/Util/PurePerl.pm"},"Data::Util::Error":{"file":"lib/Data/Util/Error.pm"},"Data::Util":{"file":"lib/Data/Util.pm","version":"0.62"}},"name":"Data::Util","dist":"Data-Util-0.62","version":"0.62","target":"Data::Util","pathname":"G/GF/GFUJI/Data-Util-0.62.tar.gz"}

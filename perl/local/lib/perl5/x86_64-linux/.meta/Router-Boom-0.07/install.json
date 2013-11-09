@@ -1,0 +1,1 @@
+{"name":"Router::Boom","target":"Router::Boom","provides":{"Router::Boom::Node":{"file":"lib/Router/Boom/Node.pm"},"Router::Boom::Method":{"file":"lib/Router/Boom/Method.pm","version":"0.07"},"Router::Boom":{"file":"lib/Router/Boom.pm","version":"0.07"}},"pathname":"T/TO/TOKUHIROM/Router-Boom-0.07.tar.gz","version":"0.07","dist":"Router-Boom-0.07"}

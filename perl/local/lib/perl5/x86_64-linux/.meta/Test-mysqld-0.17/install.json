@@ -1,0 +1,1 @@
+{"name":"Test::mysqld","provides":{"Test::mysqld":{"file":"lib/Test/mysqld.pm","version":"0.17"}},"pathname":"K/KA/KAZUHO/Test-mysqld-0.17.tar.gz","target":"Test::mysqld","version":"0.17","dist":"Test-mysqld-0.17"}

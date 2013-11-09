@@ -1,0 +1,86 @@
+{
+   "abstract" : "Sinatra-ish Simple and Clear web application framework",
+   "author" : [
+      "Masahiro Nagano <kazeburo {at} gmail.com>"
+   ],
+   "dynamic_config" : 0,
+   "generated_by" : "Module::Install version 1.06, CPAN::Meta::Converter version 2.132830, CPAN::Meta::Converter version 2.120921",
+   "license" : [
+      "perl_5"
+   ],
+   "meta-spec" : {
+      "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
+      "version" : "2"
+   },
+   "name" : "Kossy",
+   "no_index" : {
+      "directory" : [
+         "inc",
+         "share",
+         "t",
+         "xt"
+      ]
+   },
+   "prereqs" : {
+      "build" : {
+         "requires" : {
+            "CPAN::Meta" : "0",
+            "ExtUtils::MakeMaker" : "6.36"
+         }
+      },
+      "configure" : {
+         "requires" : {
+            "CPAN::Meta" : "0",
+            "ExtUtils::MakeMaker" : "6.36"
+         }
+      },
+      "runtime" : {
+         "requires" : {
+            "Class::Accessor::Lite" : "0",
+            "Cookie::Baker" : "0",
+            "Cwd" : "0",
+            "Data::Section::Simple" : "0",
+            "File::Basename" : "0",
+            "File::ShareDir" : "0",
+            "HTML::FillInForm::Lite" : "1.11",
+            "HTTP::Headers::Fast" : "0.16",
+            "HTTP::Message" : "0",
+            "HTTP::MultiPartParser" : "0",
+            "Hash::MultiValue" : "0",
+            "JSON" : "2",
+            "Kossy::Validator" : "0.01",
+            "Number::Format" : "0",
+            "Plack" : "1.0029",
+            "Plack::Middleware::ReverseProxy" : "0",
+            "Plack::Middleware::Static" : "0",
+            "Router::Boom" : "0.05",
+            "Scalar::Util" : "0",
+            "Test::More" : "0.88",
+            "Text::Xslate" : "1.6001",
+            "Text::Xslate::Bridge::TT2Like" : "0",
+            "Try::Tiny" : "0.09",
+            "URL::Encode" : "0",
+            "parent" : "0"
+         },
+         "suggests" : {
+            "URL::Encode::XS" : "0"
+         }
+      },
+      "test" : {
+         "requires" : {
+            "Test::More" : "0"
+         }
+      }
+   },
+   "release_status" : "stable",
+   "resources" : {
+      "license" : [
+         "http://dev.perl.org/licenses/"
+      ],
+      "repository" : {
+         "type" : "git",
+         "url" : "git://github.com/kazeburo/Kossy.git"
+      }
+   },
+   "version" : "0.25"
+}

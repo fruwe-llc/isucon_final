@@ -1,0 +1,1 @@
+{"target":"Test::Deep::Matcher","pathname":"M/MA/MASAKI/Test-Deep-Matcher-0.01.tar.gz","dist":"Test-Deep-Matcher-0.01","version":"0.01","name":"Test::Deep::Matcher","provides":{"Test::Deep::Matcher::DataUtil":{"file":"lib/Test/Deep/Matcher/DataUtil.pm"},"Test::Deep::Matcher":{"file":"lib/Test/Deep/Matcher.pm","version":"0.01"}}}
