@@ -7,22 +7,24 @@ require 'tempfile'
 require 'fileutils'
 require 'uuid'
 require 'redis'
-require './isuworker'
 
 class Isucon3Final < Sinatra::Base
   $stdout.sync = true
-  TIMEOUT  = 30
-  INTERVAL =  2
-  $UUID    = UUID.new
 
-  ICON_S  =  32
-  ICON_M  =  64
-  ICON_L  = 128
-  IMAGE_S = 128
-  IMAGE_M = 256
-  IMAGE_L = nil
+  unless defined? ICON_S
+    TIMEOUT  = 30
+    INTERVAL =  2
+    $UUID    = UUID.new
 
-  helpers do
+    ICON_S  =  32
+    ICON_M  =  64
+    ICON_L  = 128
+    IMAGE_S = 128
+    IMAGE_M = 256
+    IMAGE_L = nil
+  end
+
+  module Isucon3FinalHelper
     def load_config
       return $config if $config
       $config = JSON.parse(IO.read(File.dirname(__FILE__) + "/../config/#{ ENV['ISUCON_ENV'] || 'local' }.json"))
@@ -330,6 +332,8 @@ class Isucon3Final < Sinatra::Base
     end
   end
 
+  helpers Isucon3FinalHelper
+
   get '/' do
     File.read(File.join('public', 'index.html'))
   end
@@ -411,22 +415,6 @@ class Isucon3Final < Sinatra::Base
     json({
       :icon => uri_for("/icon/#{icon}")
     })
-  end
-
-  get '/prepare_users' do
-    users = db_users
-    users.each do |user|
-      create_icons user["icon"]
-    end
-    halt 200, "#{users.count}"
-  end
-
-  get '/prepare_entries' do
-    entries = db_entries
-    entries.each do |entry|
-      create_images entry["image"]
-    end
-    halt 200, "#{entries.count}"
   end
 
   post '/entry' do
@@ -614,8 +602,20 @@ class Isucon3Final < Sinatra::Base
       end
     })
   end
+
   get '/preload' do
-    Isuworker.perform_async({})
+    require './isuworker'
+
+    users = db_users
+    users.each do |user|
+      Isuworker.perform_async({:icon => user["icon"]})
+    end
+
+    entries = db_entries
+    entries.each do |entry|
+      Isuworker.perform_async({:image => entry["image"]})
+    end
+
     halt 200, "ok"
   end
 
