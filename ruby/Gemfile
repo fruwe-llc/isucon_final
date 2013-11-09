@@ -8,6 +8,7 @@ gem 'mysql2-cs-bind',  '0.0.6'
 gem 'uuid',            '2.3.7'
 gem "redis", "~> 3.0.1"
 gem "hiredis", "~> 0.4.5"
+gem "sidekiq"
 
 group :development do
   # run "bundle exec shotgun" on development
