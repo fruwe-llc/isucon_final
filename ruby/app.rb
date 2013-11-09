@@ -10,26 +10,28 @@ require 'redis'
 
 class Isucon3Final < Sinatra::Base
   $stdout.sync = true
-  TIMEOUT  = 30
-  INTERVAL =  2
-  $UUID    = UUID.new
 
-  ICON_S  =  32
-  ICON_M  =  64
-  ICON_L  = 128
-  IMAGE_S = 128
-  IMAGE_M = 256
-  IMAGE_L = nil
+  unless defined? ICON_S
+    TIMEOUT  = 30
+    INTERVAL =  2
+    $UUID    = UUID.new
 
-  helpers do
+    ICON_S  =  32
+    ICON_M  =  64
+    ICON_L  = 128
+    IMAGE_S = 128
+    IMAGE_M = 256
+    IMAGE_L = nil
+  end
+
+  module Isucon3FinalHelper
     def load_config
       return $config if $config
       $config = JSON.parse(IO.read(File.dirname(__FILE__) + "/../config/#{ ENV['ISUCON_ENV'] || 'local' }.json"))
     end
 
     def redis
-      @redis ||= Redis.new("host" => "localhost", "port" => 6379, :db => 5)
-      # :driver => :hiredis
+      @redis ||= Redis.new("host" => "localhost", "port" => 6379, :db => 5, :driver => :hiredis)
     end
 
     def connection
@@ -127,7 +129,62 @@ class Isucon3Final < Sinatra::Base
       Digest::SHA256.hexdigest($UUID.generate)
     end
 
+    def create_icons icon
+      [ICON_S, ICON_M, ICON_L].each do |image_size|
+        create_icon icon, image_size
+      end
+    end
+
+    def create_icon icon, image_size
+      dir = load_config['data_dir']
+      icon_path = "#{dir}/icon/#{icon}.png"
+      convert(icon_path, 'png', image_size, image_size, true)
+    end
+
+    def create_images image
+      [IMAGE_S, IMAGE_M, IMAGE_L].each do |image_size|
+        create_image image, image_size
+      end
+    end
+
+    # accepts IMAGE_S, IMAGE_M, IMAGE_L(nil)
+    def create_image image, image_size
+      dir = load_config['data_dir']
+      redis_key = "crop_square:#{image}:#{image_size.to_i}"
+
+      data = redis.get redis_key
+
+      if data
+        # nop
+      elsif image_size
+        file = crop_square("#{dir}/image/#{image}.jpg", 'jpg')
+        data = convert(file, 'jpg', image_size, image_size, false)
+        File.unlink(file)
+
+        redis.set redis_key, data
+      else
+        file = File.open("#{dir}/image/#{image}.jpg", 'r+b')
+        data = file.read
+        file.close
+
+        redis.set redis_key, data
+      end
+
+      return data
+    end
+
     # database accesses
+
+    def db_users
+      mysql   = connection
+      users = mysql.xquery('SELECT * FROM users').entries
+    end
+
+    def db_entries
+      db_users.collect do |user|
+        db_user_entries_by_last_entry(user["id"]).entries
+      end.flatten
+    end
 
     def db_user_by_api_key api_key
       return nil unless api_key
@@ -276,6 +333,8 @@ class Isucon3Final < Sinatra::Base
     end
   end
 
+  helpers Isucon3FinalHelper
+
   get '/' do
     File.read(File.join('public', 'index.html'))
   end
@@ -315,9 +374,6 @@ class Isucon3Final < Sinatra::Base
     dir  = load_config['data_dir']
 
     icon_path = "#{dir}/icon/#{icon}.png"
-    unless File.exist?(icon_path)
-      halt 404
-    end
 
     w = size == 's' ? ICON_S
       : size == 'm' ? ICON_M
@@ -325,8 +381,15 @@ class Isucon3Final < Sinatra::Base
       :               ICON_S
     h = w
 
+    redis_key = "convert:#{icon_path}:png:#{w}:#{w}"
+    data = redis.get redis_key
+
+    unless data
+      halt 404
+    end
+
     content_type 'image/png'
-    convert(icon_path, 'png', w, h, true)
+    data
   end
 
   post '/icon' do
@@ -347,6 +410,8 @@ class Isucon3Final < Sinatra::Base
     FileUtils.move(file, "#{dir}/icon/#{icon}.png") or halt 500
 
     db_set_user_icon user["id"], icon
+
+    create_icons icon
 
     json({
       :icon => uri_for("/icon/#{icon}")
@@ -372,6 +437,8 @@ class Isucon3Final < Sinatra::Base
     publish_level = params[:publish_level]
 
     entry_id = db_create_entry user["id"], image_id, publish_level
+
+    create_images image_id
 
     json({
       :id            => entry_id,
@@ -408,7 +475,6 @@ class Isucon3Final < Sinatra::Base
 
     image = params[:image]
     size  = params[:size] || 'l'
-    dir   = load_config['data_dir']
 
     entry = db_entry_by_image image
 
@@ -444,21 +510,8 @@ class Isucon3Final < Sinatra::Base
     redis_key = "crop_square:#{image}:#{w.to_i}"
     data = redis.get redis_key
 
-    if data
-      # nop
-    elsif w
-      file = crop_square("#{dir}/image/#{image}.jpg", 'jpg')
-      data = convert(file, 'jpg', w, h, false)
-      File.unlink(file)
-
-      redis.set redis_key, data
-    else
-      file = File.open("#{dir}/image/#{image}.jpg", 'r+b')
-      data = file.read
-      file.close
-
-      redis.set redis_key, data
-    end
+    # raise "Chris f**ked up - run preparation script" unless data
+    data = create_image image, w unless data
 
     content_type 'image/jpeg'
     data
@@ -549,6 +602,24 @@ class Isucon3Final < Sinatra::Base
         }
       end
     })
+  end
+
+  get '/preload' do
+    require './isuworker'
+
+    redis.flushdb
+
+    users = db_users
+    users.each do |user|
+      Isuworker.perform_async({:icon => user["icon"]})
+    end
+
+    entries = db_entries
+    entries.each do |entry|
+      Isuworker.perform_async({:image => entry["image"]})
+    end
+
+    halt 200, "ok"
   end
 
   run! if app_file == $0
